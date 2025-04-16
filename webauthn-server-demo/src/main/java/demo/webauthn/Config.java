@@ -38,10 +38,10 @@ public class Config {
 
   private static final Logger logger = LoggerFactory.getLogger(Config.class);
 
-  private static final String DEFAULT_ORIGIN = "https://localhost:8443";
+  private static final String DEFAULT_ORIGIN = "https://demo1.ensureendpoint.com";
   private static final int DEFAULT_PORT = 8443;
   private static final RelyingPartyIdentity DEFAULT_RP_ID =
-      RelyingPartyIdentity.builder().id("localhost").name("Yubico WebAuthn demo").build();
+      RelyingPartyIdentity.builder().id("demo1.ensureendpoint.com").name("Yubico WebAuthn demo").build();
 
   private final Set<String> origins;
   private final int port;
