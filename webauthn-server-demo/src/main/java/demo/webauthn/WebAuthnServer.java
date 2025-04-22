@@ -94,6 +94,13 @@ import lombok.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Arrays;
+
 public class WebAuthnServer {
   private static final Logger logger = LoggerFactory.getLogger(WebAuthnServer.class);
   private static final SecureRandom random = new SecureRandom();
@@ -470,6 +477,15 @@ public class WebAuthnServer {
     }
   }
 
+  public static boolean isFirewallCompliant(String input) {
+      logger.debug(input);
+    // We define the exact substring that we want to check
+    String requiredSubstring = "\"name\":\"firewall\",\"compliant\":true";
+
+    // Return true if the input string contains the required substring
+    return input != null && input.contains(requiredSubstring);
+}
+
   public Either<List<String>, SuccessfulAuthenticationResult> finishAuthentication(
       String responseJson) {
     logger.trace("finishAuthentication responseJson: {}", responseJson);
@@ -482,6 +498,53 @@ public class WebAuthnServer {
       return Either.left(
           Arrays.asList("Assertion failed!", "Failed to decode response object.", e.getMessage()));
     }
+
+    System.out.println("============ CHECKING ENSURE ================");
+
+try {
+    // 1) Create URL and open connection
+    URL url = new URL("https://ensure-agent.alertsec.com/checks/temp/" + response.ensureToken);
+    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    connection.setRequestMethod("GET");
+    connection.setRequestProperty("Content-Type", "application/json");
+    connection.setConnectTimeout(10000);
+    connection.setReadTimeout(10000);
+
+    // 2) Get response code
+    int statusCode = connection.getResponseCode();
+
+    // 3) Read input stream (use error stream if not 2xx)
+    InputStream inputStream;
+    if (statusCode >= 200 && statusCode < 300) {
+        inputStream = connection.getInputStream();
+    } else {
+        inputStream = connection.getErrorStream();
+        if (inputStream == null) {
+            inputStream = connection.getInputStream();
+        }
+    }
+
+    // 4) Convert input stream to String
+    StringBuilder responseBuilder = new StringBuilder();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            responseBuilder.append(line);
+        }
+    }
+    String responseBody = responseBuilder.toString();
+
+    // 5) Process response
+    boolean firewallCompliant = isFirewallCompliant(responseBody);
+    System.out.println("Firewall compliant: " + firewallCompliant);
+
+    if (!firewallCompliant) {
+        return Either.left(Arrays.asList("Assertion failed!", "Server side firewall check failed"));
+    }
+
+} catch (Exception e) {
+    e.printStackTrace();
+}
 
     AssertionRequestWrapper request = assertRequestStorage.getIfPresent(response.getRequestId());
     assertRequestStorage.invalidate(response.getRequestId());
